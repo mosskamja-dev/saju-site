@@ -271,19 +271,26 @@
         <!-- 2. 양력/음력 & 생년월일 -->
         <div class="space-y-1">
           <div class="flex items-center justify-between">
-            <label for="input-birthdate" class="text-xs font-semibold text-[var(--foreground)]">생년월일</label>
+            <label for="input-birthdate-text" class="text-xs font-semibold text-[var(--foreground)]">생년월일 <span class="font-normal text-[var(--muted-foreground)]">(숫자 8자리)</span></label>
             <div class="flex gap-1.5" role="group" aria-label="양력 음력 선택">
               <button type="button" id="cal-solar" onclick="selectCalendar('양력')" class="text-xs px-2 py-0.5 rounded bg-amber-600 text-white font-medium">양력</button>
               <button type="button" id="cal-lunar" onclick="selectCalendar('음력 평달')" class="text-xs px-2 py-0.5 rounded bg-[var(--secondary)] text-[var(--secondary-foreground)]">음력</button>
               <button type="button" id="cal-leap" onclick="selectCalendar('음력 윤달')" class="text-xs px-2 py-0.5 rounded bg-[var(--secondary)] text-[var(--secondary-foreground)]">윤달</button>
             </div>
           </div>
+          <input id="input-birthdate" type="hidden" value="" />
           <input
-            id="input-birthdate"
-            type="date"
-            value="1994-08-15"
-            class="w-full px-3 py-2 text-sm rounded-lg bg-[var(--background)] border border-[var(--border)] text-[var(--foreground)] focus:outline-none"
+            id="input-birthdate-text"
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+            enterkeyhint="next"
+            maxlength="10"
+            placeholder="예) 19940815"
+            oninput="formatBirthInput(this)"
+            class="w-full px-3 py-3 text-base tracking-wider rounded-lg bg-[var(--background)] border border-[var(--border)] text-[var(--foreground)] focus:outline-none focus:border-amber-600"
           />
+          <p id="birthdate-msg" class="text-xs min-h-[1rem] text-[var(--muted-foreground)]" aria-live="polite">숫자만 입력하면 점(.)은 자동으로 들어가요.</p>
         </div>
 
         <!-- 3. 태어난 시간 (12시진 선택) -->
@@ -293,14 +300,14 @@
             id="input-birthtime"
             class="w-full px-3 py-2 text-sm rounded-lg bg-[var(--background)] border border-[var(--border)] text-[var(--foreground)] focus:outline-none"
           >
-            <option value="unknown">모름 (삼주 6자로 풀이)</option>
+            <option value="unknown" selected>모름 (시간을 몰라도 괜찮아요 · 삼주 6자로 풀이)</option>
             <option value="0">자시 (子時) · 23:30 ~ 01:29</option>
             <option value="1">축시 (丑時) · 01:30 ~ 03:29</option>
             <option value="2">인시 (寅時) · 03:30 ~ 05:29</option>
             <option value="3">묘시 (卯時) · 05:30 ~ 07:29</option>
             <option value="4">진시 (辰時) · 07:30 ~ 09:29</option>
             <option value="5">사시 (巳時) · 09:30 ~ 11:29</option>
-            <option value="6" selected>오시 (午時) · 11:30 ~ 13:29</option>
+            <option value="6">오시 (午時) · 11:30 ~ 13:29</option>
             <option value="7">미시 (未時) · 13:30 ~ 15:29</option>
             <option value="8">신시 (申時) · 15:30 ~ 17:29</option>
             <option value="9">유시 (酉時) · 17:30 ~ 19:29</option>
@@ -867,6 +874,7 @@
 
     function selectCalendar(cal) {
       state.calendar = cal;
+      if (document.getElementById('input-birthdate-text').value) validateBirthdate(false);
       const map = { '양력': 'cal-solar', '음력 평달': 'cal-lunar', '음력 윤달': 'cal-leap' };
       Object.entries(map).forEach(([k, id]) => {
         const el = document.getElementById(id);
@@ -887,6 +895,61 @@
       if (active) {
         active.className = 'worry-btn text-left p-2.5 rounded-xl border border-amber-600 bg-amber-600/10 text-xs space-y-0.5 transition';
       }
+    }
+
+    // ---- 생년월일 입력: 숫자만 치면 1994.08.15 형태로 자동 정리 + 실시간 검증 ----
+    function formatBirthInput(el) {
+      const d = el.value.replace(/\D/g, '').slice(0, 8);
+      let out = d;
+      if (d.length > 6) out = `${d.slice(0, 4)}.${d.slice(4, 6)}.${d.slice(6)}`;
+      else if (d.length > 4) out = `${d.slice(0, 4)}.${d.slice(4)}`;
+      el.value = out;
+      validateBirthdate(false);
+    }
+
+    // 올바른 날짜면 true. showIncomplete=true 이면 덜 입력한 경우도 안내 문구를 띄운다.
+    function validateBirthdate(showIncomplete) {
+      const el = document.getElementById('input-birthdate-text');
+      const hidden = document.getElementById('input-birthdate');
+      const msg = document.getElementById('birthdate-msg');
+      const digits = el.value.replace(/\D/g, '');
+      hidden.value = '';
+      const say = (text, kind) => {
+        msg.textContent = text;
+        msg.className = 'text-xs min-h-[1rem] ' + (kind === 'error' ? 'text-red-500' : kind === 'ok' ? 'text-emerald-500' : 'text-[var(--muted-foreground)]');
+        el.classList.toggle('border-red-500', kind === 'error');
+        return false;
+      };
+      if (digits.length < 8) {
+        return showIncomplete ? say('생년월일 8자리를 입력해 주세요. 예) 19940815', 'error') : say('숫자만 입력하면 점(.)은 자동으로 들어가요.', 'muted');
+      }
+      const y = Number(digits.slice(0, 4)), m = Number(digits.slice(4, 6)), d = Number(digits.slice(6, 8));
+      const maxY = new Date().getFullYear();
+      if (y < 1900 || y > maxY) return say(`연도는 1900~${maxY}년 사이로 입력해 주세요.`, 'error');
+      if (m < 1 || m > 12) return say('월은 01~12 사이로 입력해 주세요.', 'error');
+
+      let hint = '';
+      try {
+        if (state.calendar === '양력') {
+          const dt = new Date(y, m - 1, d);
+          if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return say(`${y}년 ${m}월 ${d}일은 없는 날짜예요.`, 'error');
+          if (dt > new Date()) return say('오늘 이후 날짜는 입력할 수 없어요.', 'error');
+          const l = Solar.fromYmd(y, m, d).getLunar();
+          hint = `확인: 음력 ${l.getYear()}년 ${l.getMonth() < 0 ? '윤' : ''}${Math.abs(l.getMonth())}월 ${l.getDay()}일`;
+        } else {
+          const leap = state.calendar === '음력 윤달';
+          const lm = LunarMonth.fromYm(y, leap ? -m : m);
+          if (!lm) return say(leap ? `${y}년에는 윤${m}월이 없어요. '음력'을 선택해 보세요.` : `${y}년 음력 ${m}월을 확인해 주세요.`, 'error');
+          if (d < 1 || d > lm.getDayCount()) return say(`${y}년 음력 ${leap ? '윤' : ''}${m}월은 ${lm.getDayCount()}일까지 있어요.`, 'error');
+          const sol = Lunar.fromYmd(y, leap ? -m : m, d).getSolar();
+          hint = `확인: 양력 ${sol.getYear()}년 ${sol.getMonth()}월 ${sol.getDay()}일`;
+        }
+      } catch (err) {
+        return say('날짜를 다시 확인해 주세요.', 'error');
+      }
+      hidden.value = `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      say(hint, 'ok');
+      return true;
     }
 
     // 실제 생년월일시 기반 사주 4주8자 결정론적 산출 함수
@@ -957,6 +1020,10 @@
     }
 
     function runSajuCalculation() {
+      if (!validateBirthdate(true)) {
+        document.getElementById('input-birthdate-text').focus();
+        return;
+      }
       computeSajuFromInputs();
       trackAnalyticsEvent('saju_submit', { worry: state.worry, gender: state.gender });
       goToStep(3);
